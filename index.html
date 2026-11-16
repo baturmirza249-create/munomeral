@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Münazara Kulübü</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="container header-content">
+            <a href="index.html" class="logo">Münazara Kulübü</a>
+            <div>
+                <button id="login-btn" class="btn-primary">Google ile Giriş Yap</button>
+                <div id="user-panel" class="user-info" style="display: none;">
+                    <img id="user-photo" src="" alt="Profil">
+                    <span id="user-name"></span>
+                    <button id="logout-btn" class="btn-secondary">Çıkış</button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <main class="container">
+        <section id="yoklama-section" class="card" style="display: none;">
+            <h2>Eğitim Yoklaması</h2>
+            <p id="tarih-bilgisi" style="margin-bottom: 14px; font-size: 0.95rem; color: #475569;"></p>
+            <button id="yoklama-btn" class="btn-success">Durum kontrol ediliyor...</button>
+        </section>
+        <section class="card">
+            <h2>Kulüp Hakkında</h2>
+            <p>Münazara Kulübü resmi web sayfasına hoş geldiniz. Haftalık eğitim ve duyurularımızı buradan takip edebilirsiniz.</p>
+        </section>
+        <section class="card">
+            <h2>Duyurular</h2>
+            <div id="duyurular-listesi"><p style="color: #64748b;">Duyurular yükleniyor...</p></div>
+        </section>
+        <div id="admin-link-area" style="display: none; text-align: right;">
+            <a href="admin.html" class="admin-link">Yönetim Paneline Geç →</a>
+        </div>
+    </main>
+    <script type="module">
+        import { auth, db, provider, ADMIN_EMAIL } from './firebase-config.js';
+        import { signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { doc, getDoc, setDoc, collection, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const bugun = new Date().toISOString().split('T')[0];
+        document.getElementById("tarih-bilgisi").textContent = `Bugünkü eğitime katılımınızı onaylayın. İşaretlendikten sonra değiştirilemez.`;
+
+        document.getElementById("login-btn").addEventListener("click", () => signInWithPopup(auth, provider));
+        document.getElementById("logout-btn").addEventListener("click", () => signOut(auth));
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                document.getElementById("login-btn").style.display = "none";
+                document.getElementById("user-panel").style.display = "flex";
+                document.getElementById("yoklama-section").style.display = "block";
+                document.getElementById("user-name").textContent = user.displayName;
+                document.getElementById("user-photo").src = user.photoURL;
+
+                await setDoc(doc(db, "users", user.uid), { name: user.displayName, email: user.email }, { merge: true });
+
+                if (user.email === ADMIN_EMAIL) {
+                    document.getElementById("admin-link-area").style.display = "block";
+                }
+                yoklamaKontrol(user.uid);
+            } else {
+                document.getElementById("login-btn").style.display = "block";
+                document.getElementById("user-panel").style.display = "none";
+                document.getElementById("yoklama-section").style.display = "none";
+                document.getElementById("admin-link-area").style.display = "none";
+            }
+        });
+
+        async function yoklamaKontrol(uid) {
+            const btn = document.getElementById("yoklama-btn");
+            const snap = await getDoc(doc(db, "yoklamalar", `${uid}_${bugun}`));
+            if (snap.exists()) {
+                btn.textContent = "Bugünkü Eğitime Katıldınız (Kayıt Alındı)";
+                btn.disabled = true;
+            } else {
+                btn.textContent = "Bugünkü Eğitime Katıldım";
+                btn.disabled = false;
+            }
+        }
+
+        document.getElementById("yoklama-btn").addEventListener("click", async () => {
+            const user = auth.currentUser;
+            if (!user) return;
+            const btn = document.getElementById("yoklama-btn");
+            btn.disabled = true;
+            btn.textContent = "Kaydediliyor...";
+            await setDoc(doc(db, "yoklamalar", `${user.uid}_${bugun}`), {
+                uid: user.uid, name: user.displayName, email: user.email, date: bugun, createdAt: new Date()
+            });
+            btn.textContent = "Bugünkü Eğitime Katıldınız (Kayıt Alındı)";
+        });
+
+        async function duyurulariGetir() {
+            const liste = document.getElementById("duyurular-listesi");
+            try {
+                const snapshot = await getDocs(query(collection(db, "announcements"), orderBy("date", "desc")));
+                if (snapshot.empty) { liste.innerHTML = "<p style='color: #64748b;'>Henüz duyuru yok.</p>"; return; }
+                let html = "";
+                snapshot.forEach(d => {
+                    const data = d.data();
+                    html += `<div class="duyuru-item"><h3>${data.title}</h3><p>${data.content}</p></div>`;
+                });
+                liste.innerHTML = html;
+            } catch (e) { liste.innerHTML = "<p style='color: red;'>Duyurular yüklenemedi.</p>"; }
+        }
+        duyurulariGetir();
+    </script>
+</body>
+</html>

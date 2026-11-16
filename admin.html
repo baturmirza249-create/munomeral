@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yönetim Paneli - Münazara Kulübü</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="container header-content">
+            <a href="index.html" class="logo">Yönetim Paneli</a>
+            <a href="index.html" class="btn-secondary" style="text-decoration: none;">← Siteye Dön</a>
+        </div>
+    </header>
+    <main class="container">
+        <div id="auth-warning" class="card">
+            <p id="warning-text">Yönetici yetkisi kontrol ediliyor...</p>
+            <button id="admin-login-btn" class="btn-primary" style="margin-top: 12px; display: none;">Yönetici Hesabıyla Giriş Yap</button>
+        </div>
+        <div id="admin-content" style="display: none;">
+            <section class="card">
+                <h2>Yeni Duyuru Yayınla</h2>
+                <form id="duyuru-form">
+                    <div class="form-group"><label>Başlık</label><input type="text" id="baslik" required></div>
+                    <div class="form-group"><label>İçerik</label><textarea id="icerik" rows="4" required></textarea></div>
+                    <button type="submit" class="btn-primary">Yayınla</button>
+                </form>
+            </section>
+            <section class="card">
+                <h2>Yoklama Kayıtları</h2>
+                <table>
+                    <thead><tr><th>Tarih</th><th>Adı</th><th>E-posta</th></tr></thead>
+                    <tbody id="yoklama-tablosu"><tr><td colspan="3">Yükleniyor...</td></tr></tbody>
+                </table>
+            </section>
+        </div>
+    </main>
+    <script type="module">
+        import { auth, db, provider, ADMIN_EMAIL } from './firebase-config.js';
+        import { signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { collection, addDoc, getDocs, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        document.getElementById("admin-login-btn").addEventListener("click", () => signInWithPopup(auth, provider));
+
+        onAuthStateChanged(auth, (user) => {
+            const warningBox = document.getElementById("auth-warning");
+            const warningText = document.getElementById("warning-text");
+            const loginBtn = document.getElementById("admin-login-btn");
+            const adminContent = document.getElementById("admin-content");
+
+            if (!user) {
+                warningBox.style.display = "block";
+                warningText.textContent = "Giriş yapmalısınız.";
+                loginBtn.style.display = "inline-block";
+                adminContent.style.display = "none";
+            } else if (user.email !== ADMIN_EMAIL) {
+                warningBox.style.display = "block";
+                warningText.textContent = `Bu hesap (${user.email}) yönetici yetkisine sahip değil.`;
+                loginBtn.style.display = "none";
+                adminContent.style.display = "none";
+            } else {
+                warningBox.style.display = "none";
+                adminContent.style.display = "block";
+                yoklamalariListele();
+            }
+        });
+
+        document.getElementById("duyuru-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            await addDoc(collection(db, "announcements"), {
+                title: document.getElementById("baslik").value,
+                content: document.getElementById("icerik").value,
+                date: new Date()
+            });
+            alert("Duyuru yayınlandı.");
+            document.getElementById("duyuru-form").reset();
+        });
+
+        async function yoklamalariListele() {
+            const tablo = document.getElementById("yoklama-tablosu");
+            const snapshot = await getDocs(query(collection(db, "yoklamalar"), orderBy("createdAt", "desc")));
+            if (snapshot.empty) { tablo.innerHTML = "<tr><td colspan='3'>Kayıt yok.</td></tr>"; return; }
+            let html = "";
+            snapshot.forEach(d => {
+                const data = d.data();
+                html += `<tr><td>${data.date}</td><td>${data.name}</td><td>${data.email}</td></tr>`;
+            });
+            tablo.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
