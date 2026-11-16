@@ -9,7 +9,7 @@ const firebaseConfig = {
     projectId: "munomeral-6ea61",
     storageBucket: "munomeral-6ea61.firebasestorage.app",
     messagingSenderId: "371735806025",
-    appId: "1:371735806025:web:5f7333fa99330713afbf98"
+    appId: "1:371735806025:web:5f7333fa99330713afbf98",
     measurementId: "G-PXLWY0KCGP"
 };
 
